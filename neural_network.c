@@ -112,6 +112,7 @@ void nn_backward(NeuralNetwork *nn, const double y[]){
 double nn_predict(NeuralNetwork *nn, const double x[], const double t[], double y[], double lr, int learn){
     /*
     NeuralNetworkに入力x, 正解tを与えて学習させる.
+    ただし, learn == 0 のときは学習を行わない.
     二乗和誤差を返す.
     */
     // 正解を予想する.
