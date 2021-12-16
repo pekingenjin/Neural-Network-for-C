@@ -3,7 +3,6 @@
 #include <math.h>
 #include <assert.h>
 
-#define LEN_ARRAY(a) (sizeof(a) / sizeof(a[0]))
 #define SWAP(a, b) (a ^= b, b = a^b, a ^= b)
 
 
@@ -68,20 +67,7 @@ double he(int n){
 
 
 // ------ matrix and vector ------
-
-void matrix_init(double **m, int h, int w){
-    // h行w列の2次元配列を初期化する.
-    for (int i = 0; i < h; i++){
-        m[i] = malloc(w * sizeof(double));
-    }
-}
-
-void delete_matrix(double **m, int h){
-    // 2次元配列のメモリを解放する.
-    for (int i = 0; i < h; i++)
-        free(m[i]);
-    free(m);
-}
+// 縦ベクトルで考える.
 
 void vec_add_vec(const double a[], const double b[], double c[], int len){
     // a+bをcに代入する.
@@ -97,28 +83,30 @@ double vec_mul_vec(const double a[], const double b[], int len){
     return res;
 }
 
-void vec_mul_vecT(const double a[], const double b[], double **res, int h, int w){
+void vec_mul_vecT(const double a[], const double b[], double res[], int h, int w){
     // a*b^Tをresに代入する.
+    // aの長さがh, bの長さがwになるようにする.
     for (int i = 0; i < h; i++){
         for (int j = 0; j < w; j++)
-            res[i][j] = a[i] * b[j];
+            res[w*i+j] = a[i] * b[j];
     }
 }
 
-void mat_mul_vec(double **m, const double v[], double res[], int h, int w){
+void mat_mul_vec(const double m[], const double v[], double res[], int h, int w){
     // m*vをresに代入する.
-    for (int i = 0; i < h; i++)
-        res[i] = vec_mul_vec(m[i], v, w);
+    for (int i = 0; i < h; i++){
+        res[i] = 0.0;
+        for (int j = 0; j < w; j++)
+            res[i] += m[w*i+j] * v[j];
+    }
 }
 
-double **transpose(double **m, int h, int w){
-    // mの転置行列を返す.
-    double **mt = malloc(w * sizeof(double*));
-    matrix_init(mt, w, h);
-    // 値を代入する.
+void matT_mul_vec(const double m[], const double v[], double res[], int h, int w){
+    // m^T*vをresに代入する.
+    // mの行数とvの長さがwになるようにする.
     for (int i = 0; i < h; i++){
+        res[i] = 0.0;
         for (int j = 0; j < w; j++)
-            mt[j][i] = m[i][j];
+            res[i] += m[h*j+i] * v[j];
     }
-    return mt;
 }
