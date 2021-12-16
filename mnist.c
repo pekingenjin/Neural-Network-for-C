@@ -1,6 +1,5 @@
 #include "neural_network.c"
 
-#include <time.h>
 
 #define TRAIN_DATA "mnist_train_49.txt"
 #define TEST_DATA "mnist_test_49.txt"
@@ -13,22 +12,6 @@
 MNISTの画像分類を行う.
 簡単のため, 4と9の分類に限定する.
 */
-
-
-double stop_watch(struct timespec start_time, struct timespec end_time) {
-    // 経過時間を秒単位で返す.
-    /* 使用例
-    struct timespec start_time, end_time;
-    clock_gettime(CLOCK_REALTIME, &start_time);
-    // 2秒間処理を止める.
-    sleep(2);
-    clock_gettime(CLOCK_REALTIME, &end_time);
-    printf("%lf\n", stop_watch(start_time, end_time));
-    */
-    long int sec = end_time.tv_sec - start_time.tv_sec;
-    long int nsec = end_time.tv_nsec - start_time.tv_nsec;
-    return (double) sec + (double) nsec / pow(10, 9);
-}
 
 
 int main(void){
@@ -81,18 +64,9 @@ int main(void){
     fclose(fp);
 
     // 学習
-
-    // 時間計測
-    struct timespec start_time, end_time;
-    clock_gettime(CLOCK_REALTIME, &start_time);
-
-    // モデルを学習させる.
     double lr = 0.001;
-    nn_fit(nn, X_train, y_train, TRAIN_SIZE, X_test, y_test, TEST_SIZE, lr, 5);
-
-    // 時間計測
-    clock_gettime(CLOCK_REALTIME, &end_time);
-    printf("%lf\n", stop_watch(start_time, end_time));
+    int epoch = 5;
+    nn_fit(nn, X_train, y_train, TRAIN_SIZE, X_test, y_test, TEST_SIZE, lr, epoch);
 
     return 0;
 }
