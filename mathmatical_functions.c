@@ -1,9 +1,10 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <assert.h>
 
 #define SWAP(a, b) (a ^= b, b = a^b, a ^= b)
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) < (b) ? (b) : (a))
 
 
 /*
@@ -88,7 +89,7 @@ void vec_mul_vecT(const double a[], const double b[], double res[], int h, int w
     // aの長さがh, bの長さがwになるようにする.
     for (int i = 0; i < h; i++){
         for (int j = 0; j < w; j++)
-            res[w*i+j] = a[i] * b[j];
+            res[w*i+j] += a[i] * b[j];
     }
 }
 
