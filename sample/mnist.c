@@ -1,4 +1,4 @@
-#include "neural_network.c"
+#include "../neural_network.c"
 
 
 #define TRAIN_DATA "mnist_train_49.txt"
@@ -20,7 +20,7 @@ int main(void){
     NeuralNetwork *nn;
     nn = malloc(sizeof(NeuralNetwork));
     int model_size[4] = {IMAGE_SIZE*IMAGE_SIZE, 32, 32, 1};
-    nn_init(nn, model_size);
+    nn_init(nn, 3, model_size);
     
     // データセットの準備
     FILE *fp;
@@ -65,8 +65,9 @@ int main(void){
 
     // 学習
     double lr = 0.001;
+    int batch_size = 32;
     int epoch = 5;
-    nn_fit(nn, X_train, y_train, TRAIN_SIZE, X_test, y_test, TEST_SIZE, lr, epoch);
+    nn_fit(nn, X_train, y_train, TRAIN_SIZE, X_test, y_test, TEST_SIZE, lr, batch_size, epoch);
 
     return 0;
 }
