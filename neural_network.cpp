@@ -41,26 +41,26 @@ double he(int n) {
 
 // ------ matrix calculation ------
 
-vector<vector<double>>& transpose(const vector<vector<double>>& a) {
+vector<vector<double>> transpose(const vector<vector<double>>& a) {
     /* aの転置行列を返す. */
     assert(!a.empty() && !a[0].empty());
     vector<vector<double>> ret(a[0].size(), vector<double>(a.size()));
-    for (int i = 0; i < a.size(); i++) {
-        for (int j = 0; j < a[0].size(); j++) {
+    for (int i = 0; i < (int)a.size(); i++) {
+        for (int j = 0; j < (int)a[0].size(); j++) {
             ret[j][i] = a[i][j];
         }
     }
     return ret;
 }
 
-vector<vector<double>>& dot(const vector<vector<double>>& a, const vector<vector<double>>& b) {
+vector<vector<double>> dot(const vector<vector<double>>& a, const vector<vector<double>>& b) {
     assert(!a.empty() && !a[0].empty() && !b.empty() && !b[0].empty());
     assert(a[0].size() == b.size());
     vector<vector<double>> ret(a.size(), vector<double>(b[0].size(),0.0));
     vector<vector<double>> tb = transpose(b);
-    for (int i = 0; i < a.size(); i++) {
-        for (int j = 0; j < tb.size(); j++) {
-            for (int k = 0; k < a[0].size(); k++) {
+    for (int i = 0; i < (int)a.size(); i++) {
+        for (int j = 0; j < (int)tb.size(); j++) {
+            for (int k = 0; k < (int)a[0].size(); k++) {
                 ret[i][j] += a[i][k] * tb[j][k];
             }
         }
@@ -68,23 +68,136 @@ vector<vector<double>>& dot(const vector<vector<double>>& a, const vector<vector
     return ret;
 }
 
+// ------ optimizers ------
+
+struct Optimizer {
+    /* interface class */
+    virtual void update(vector<double>& params, vector<double>& grads) = 0;
+};
+
+struct SGD : Optimizer {
+    /* 確率的勾配降下法ではなく, 最急降下法の実装になっている. */
+    double lr;
+
+    SGD(double learning_rate=0.01) {
+        assert(0.0 < learning_rate && learning_rate < 1.0);
+        lr = learning_rate;
+    }
+
+    void update(vector<double>& params, vector<double>& grads) override {
+        assert(!params.empty() && !grads.empty());
+        assert(params.size() == grads.size());
+        for (int i = 0; i < (int)params.size(); i++) {
+            params[i] -= lr * grads[i];
+        }
+    }
+};
+
+struct Momentum : Optimizer {
+    double lr;
+    double beta;
+    vector<double> v;
+
+    Momentum(double learning_rate=0.01, double momentum=0.9) {
+        assert(0.0 < learning_rate && learning_rate < 1.0);
+        assert(0.0 < momentum && momentum < 1.0);
+        lr = learning_rate;
+        beta = momentum;
+    }
+
+    void update(vector<double>& params, vector<double>& grads) override {
+        assert(!params.empty() && !grads.empty());
+        assert(params.size() == grads.size());
+        if (v.empty()) {
+            v = vector<double>(params.size(), 0.0);
+        }
+        for (int i = 0; i < (int)params.size(); i++) {
+            v[i] = beta*v[i] - (1.0-beta)*grads[i];
+            params[i] -= lr * v[i];
+        }
+    }
+};
+
+struct RMSprop : Optimizer {
+    double lr;
+    double beta;
+    double epsilon;
+    vector<double> v;
+
+    RMSprop(double learning_rate=0.01, double decay_rate=0.99, double delta=1e-7) {
+        assert(0.0 < learning_rate && learning_rate < 1.0);
+        assert(0.0 < decay_rate && decay_rate < 1.0);
+        assert(delta <= 0.1);
+        lr = learning_rate;
+        beta = decay_rate;
+        epsilon = delta;
+    }
+
+    void update(vector<double>& params, vector<double>& grads) override {
+        assert(!params.empty() && !grads.empty());
+        assert(params.size() == grads.size());
+        if (v.empty()) {
+            v = vector<double>(params.size(), 0.0);
+        }
+        for (int i = 0; i < (int)params.size(); i++) {
+            v[i] = beta*v[i] + (1.0-beta)*grads[i]*grads[i];
+            params[i] -= lr * grads[i] / sqrt(v[i]+epsilon);
+        }
+    }
+};
+
+struct Adam : Optimizer {
+    double lr;
+    double beta1;
+    double beta2;
+    double epsilon;
+    vector<double> v;
+    vector<double> s;
+
+    Adam(double learning_rate=0.01, double momentum=0.9, double decay_rate=0.999, double delta=1e-7) {
+        assert(0.0 < learning_rate && learning_rate < 1.0);
+        assert(0.0 < momentum && momentum < 1.0);
+        assert(0.0 < decay_rate && decay_rate < 1.0);
+        assert(delta <= 0.1);
+        lr = learning_rate;
+        beta1 = momentum;
+        beta2 = decay_rate;
+        epsilon = delta;
+    }
+
+    void update(vector<double>& params, vector<double>& grads) override {
+        assert(!params.empty() && !grads.empty());
+        assert(params.size() == grads.size());
+        if (v.empty()) {
+            v = vector<double>(params.size(), 0.0);
+            s = vector<double>(params.size(), 0.0);
+        }
+        for (int i = 0; i < (int)params.size(); i++) {
+            v[i] = beta1*v[i] + (1.0-beta1)*grads[i];
+            s[i] = beta2*s[i] + (1.0-beta2)*grads[i]*grads[i];
+            params[i] -= lr * v[i] / sqrt(s[i]+epsilon);
+        }
+    }
+};
+
 // ------ layers ------
 
 struct Layer {
     /* interface class */
-    virtual vector<vector<double>>& forward(const vector<vector<double>>& x) = 0;
-    virtual vector<vector<double>>& backward(vector<vector<double>>& dout) = 0;
+    virtual vector<vector<double>> forward(const vector<vector<double>>& x) = 0;
+    virtual vector<vector<double>> backward(vector<vector<double>>& dout) = 0;
+    virtual void update() = 0;
 };
 
 struct ReluLayer : Layer {
     vector<vector<bool>> mask;
 
-    vector<vector<double>>& forward(const vector<vector<double>>& x) override {
+    vector<vector<double>> forward(const vector<vector<double>>& x) override {
         assert(!x.empty() && !x[0].empty());
         vector<vector<double>> ret(x.size(), vector<double>(x[0].size(), 0.0));
         mask = vector<vector<bool>>(x.size(), vector<bool>(x[0].size(), true));
-        for (int i = 0; i < x.size(); i++) {
-            for (int j = 0; j < x[0].size(); j++) {
+        for (int i = 0; i < (int)x.size(); i++) {
+            for (int j = 0; j < (int)x[0].size(); j++) {
                 if (0 < x[i][j]) {
                     ret[i][j] = x[i][j];
                     mask[i][j] = false;
@@ -94,11 +207,11 @@ struct ReluLayer : Layer {
         return ret;
     }
 
-    vector<vector<double>>& backward(vector<vector<double>>& dout) override {
+    vector<vector<double>> backward(vector<vector<double>>& dout) override {
         assert(!dout.empty() && !dout[0].empty() && !mask.empty() && !mask[0].empty());
         assert(dout.size() == mask.size() && dout[0].size() == mask[0].size());
-        for (int i = 0; i < dout.size(); i++) {
-            for (int j = 0; j < dout[0].size(); j++) {
+        for (int i = 0; i < (int)dout.size(); i++) {
+            for (int j = 0; j < (int)dout[0].size(); j++) {
                 if (mask[i][j]) {
                     dout[i][j] = 0.0;
                 }
@@ -106,32 +219,36 @@ struct ReluLayer : Layer {
         }
         return dout;
     }
+
+    void update() override {}
 };
 
 struct SigmoidLayer : Layer {
     vector<vector<double>> out;
 
-    vector<vector<double>>& forward(const vector<vector<double>>& x) override {
+    vector<vector<double>> forward(const vector<vector<double>>& x) override {
         assert(!x.empty() && !x[0].empty());
         out = vector<vector<double>>(x.size(), vector<double>(x[0].size()));
-        for (int i = 0; i < x.size(); i++) {
-            for (int j = 0; j < x[0].size(); j++) {
+        for (int i = 0; i < (int)x.size(); i++) {
+            for (int j = 0; j < (int)x[0].size(); j++) {
                 out[i][j] = 1.0 / (1.0 + exp(-x[i][j]));
             }
         }
         return out;
     }
 
-    vector<vector<double>>& backward(vector<vector<double>>& dout) override {
+    vector<vector<double>> backward(vector<vector<double>>& dout) override {
         assert(!dout.empty() && !dout[0].empty() && !out.empty() && !out[0].empty());
         assert(dout.size() == out.size() && dout[0].size() == out[0].size());
-        for (int i = 0; i < dout.size(); i++) {
-            for (int j = 0; j < dout[0].size(); j++) {
+        for (int i = 0; i < (int)dout.size(); i++) {
+            for (int j = 0; j < (int)dout[0].size(); j++) {
                 dout[i][j] *= (1.0 - out[i][j]) * out[i][j];
             }
         }
         return dout;
     }
+
+    void update() override {}
 };
 
 struct AffineLayer : Layer {
@@ -142,8 +259,9 @@ struct AffineLayer : Layer {
     vector<vector<double>> input;
     vector<vector<double>> dw;
     vector<double> db;
+    vector<Optimizer*> opt;
 
-    AffineLayer(int in, int out, string initial_value="xavier") {
+    AffineLayer(int in, int out, string initial_value="xavier", string optimizer="adam") {
         assert(0 < in && 0 < out);
         n = in;
         m = out;
@@ -162,13 +280,34 @@ struct AffineLayer : Layer {
             }
         }
         b = vector<double>(m, 0.0);
+
+        transform(optimizer.begin(), optimizer.end(), optimizer.begin(), ::tolower);
+        opt = vector<Optimizer*>(n+1);
+        for (int i = 0; i < n+1; i++) {
+            if (optimizer == "sgd") {
+                SGD sgd = SGD();
+                opt[i] = (Optimizer*)&sgd;
+            } else if (optimizer == "momentum") {
+                Momentum momentum = Momentum();
+                opt[i] = (Optimizer*)&momentum;
+            } else if (optimizer == "rmsprop") {
+                RMSprop rmsprop = RMSprop();
+                opt[i] = (Optimizer*)&rmsprop;
+            } else if (optimizer == "adam") {
+                Adam adam = Adam();
+                opt[i] = (Optimizer*)&adam;
+            } else {
+                cout << "error: unknown optimizer: " << optimizer << endl;
+                return;
+            }
+        }
     }
 
-    vector<vector<double>>& forward(const vector<vector<double>>& x) override {
-        assert(!x.empty() && x[0].size() == n);
+    vector<vector<double>> forward(const vector<vector<double>>& x) override {
+        assert(!x.empty() && (int)x[0].size() == n);
         input = x;
         vector<vector<double>> out = dot(x, w);
-        for (int i = 0; i < out.size(); i++) {
+        for (int i = 0; i < (int)out.size(); i++) {
             for (int j = 0; j < m; j++) {
                 out[i][j] += b[j];
             }
@@ -176,90 +315,25 @@ struct AffineLayer : Layer {
         return out;
     }
 
-    vector<vector<double>>& backward(vector<vector<double>>& dout) override {
-        assert(dout.size() == input.size() && dout[0].size() == m);
+    vector<vector<double>> backward(vector<vector<double>>& dout) override {
+        assert(dout.size() == input.size() && (int)dout[0].size() == m);
         vector<vector<double>> dx = dot(dout, transpose(w));
         dw = dot(transpose(input), dout);
         db = vector<double>(m, 0.0);
-        for (int i = 0; i < input.size(); i++) {
+        for (int i = 0; i < (int)input.size(); i++) {
             for (int j = 0; j < m; j++) {
                 db[j] += dout[i][j];
             }
         }
         return dx;
     }
-};
-
-// ------ optimizers ------
-
-struct Optimizer {
-    /* interface class */
-    virtual void update(vector<vector<double>>& params, vector<vector<double>>& grads) = 0;
-};
-
-struct SGD : Optimizer {
-    /* 確率的勾配降下法ではなく, 最急降下法の実装になっている. */
-    double lr;
-
-    SGD(double learning_rate=0.01) {
-        assert(0.0 < learning_rate && learning_rate < 1.0);
-        lr = learning_rate;
-    }
-
-    void update(vector<vector<double>>& params, vector<vector<double>>& grads) override {
-        assert(!params.empty() && !params[0].empty() && !grads.empty() && !grads[0].empty());
-        assert(params.size() == grads.size() && params[0].size() == grads.size());
-        for (int i = 0; i < params.size(); i++) {
-            for (int j = 0; j < params[0].size(); j++) {
-                params[i][j] -= lr * grads[i][j];
-            }
+    
+    void update() override {
+        for (int i = 0; i < n; i++) {
+            opt[i]->update(w[i], dw[i]);
         }
+        opt[n]->update(b, db);
     }
-};
-
-struct Momentum : Optimizer {
-    double lr;
-    double beta;
-    vector<vector<double>> v;
-
-    Momentum(double learning_rate=0.01, double momentum=0.9) {
-        assert(0.0 < learning_rate && learning_rate < 1.0);
-        assert(0.0 < momentum && momentum < 1.0);
-        lr = learning_rate;
-        beta = momentum;
-    }
-
-    void update(vector<vector<double>>& params, vector<vector<double>>& grads) override {
-        assert(!params.empty() && !params[0].empty() && !grads.empty() && !grads[0].empty());
-        assert(params.size() == grads.size() && params[0].size() == grads.size());
-        if (v.empty()) {
-            v = vector<vector<double>>(params.size(), vector<double>(params[0].size(),0.0));
-        }
-        for (int i = 0; i < params.size(); i++) {
-            for (int j = 0; j < params[0].size(); j++) {
-                v[i][j] = beta*v[i][j] - (1.0-beta)*grads[i][j];
-                params[i][j] -= lr * v[i][j];
-            }
-        }
-    }
-};
-
-struct RMSprop : Optimizer {
-    double lr;
-    double beta;
-    double epsilon;
-    vector<vector<double>> h;
-
-    RMSprop(double learning_rate=0.01, double decay_rate=0.99, double delta=1e-7) {
-        assert(0.0 < learning_rate && learning_rate < 1.0);
-        assert(0.0 < decay_rate && decay_rate < 1.0);
-        assert(delta <= 0.1);
-        lr = learning_rate;
-        beta = decay_rate;
-        epsilon = delta;
-    }
-
-    //
 };
 
 // ------ loss functions ------
@@ -270,7 +344,7 @@ double sse(vector<double>& y, vector<double>& t, vector<double>& dout) {
     doutに勾配を代入する. */
     assert(y.size() == dout.size() && t.size() == dout.size());
     double ret = 0.0;
-    for (int i = 0; i < dout.size(); i++) {
+    for (int i = 0; i < (int)dout.size(); i++) {
         dout[i] = y[i] - t[i];
         ret += (y[i]-t[i]) * (y[i]-t[i]);
     }
