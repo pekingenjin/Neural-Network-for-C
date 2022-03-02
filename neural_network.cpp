@@ -71,7 +71,7 @@ vector<vector<double>> dot(const vector<vector<double>>& a, const vector<vector<
 // ------ optimizers ------
 
 struct Optimizer {
-    /* interface class */
+    /* abstract class */
     virtual void update(vector<double>& params, vector<double>& grads) = 0;
 };
 
@@ -183,7 +183,7 @@ struct Adam : Optimizer {
 // ------ layers ------
 
 struct Layer {
-    /* interface class */
+    /* abstract class */
     virtual vector<vector<double>> forward(const vector<vector<double>>& x) = 0;
     virtual vector<vector<double>> backward(vector<vector<double>>& dout) = 0;
     virtual void update() = 0;
@@ -259,9 +259,10 @@ struct AffineLayer : Layer {
     vector<vector<double>> input;
     vector<vector<double>> dw;
     vector<double> db;
-    vector<Optimizer*> opt;
+    vector<Optimizer*> w_opt;
+    Optimizer* b_opt;
 
-    AffineLayer(int in, int out, string initial_value="xavier", string optimizer="adam") {
+    AffineLayer(int in, int out, string initial_value="xavier", string optimizer="adam", double lr=0.01) {
         assert(0 < in && 0 < out);
         n = in;
         m = out;
@@ -282,24 +283,38 @@ struct AffineLayer : Layer {
         b = vector<double>(m, 0.0);
 
         transform(optimizer.begin(), optimizer.end(), optimizer.begin(), ::tolower);
-        opt = vector<Optimizer*>(n+1);
-        for (int i = 0; i < n+1; i++) {
-            if (optimizer == "sgd") {
-                SGD sgd = SGD();
-                opt[i] = (Optimizer*)&sgd;
-            } else if (optimizer == "momentum") {
-                Momentum momentum = Momentum();
-                opt[i] = (Optimizer*)&momentum;
-            } else if (optimizer == "rmsprop") {
-                RMSprop rmsprop = RMSprop();
-                opt[i] = (Optimizer*)&rmsprop;
-            } else if (optimizer == "adam") {
-                Adam adam = Adam();
-                opt[i] = (Optimizer*)&adam;
-            } else {
-                cout << "error: unknown optimizer: " << optimizer << endl;
-                return;
+        w_opt = vector<Optimizer*>(n);
+        if (optimizer == "sgd") {
+            for (int i = 0; i < n; i++) {
+                SGD sgd = SGD(lr);
+                w_opt[i] = (Optimizer*)&sgd;
             }
+            SGD sgd = SGD(lr);
+            b_opt = (Optimizer*)&sgd;
+        } else if (optimizer == "momentum") {
+            for (int i = 0; i < n; i++) {
+                Momentum momentum = Momentum(lr);
+                w_opt[i] = (Optimizer*)&momentum;
+            }
+            Momentum momentum = Momentum(lr);
+            b_opt = (Optimizer*)&momentum;
+        } else if (optimizer == "rmsprop") {
+            for (int i = 0; i < n; i++) {
+                RMSprop rmsprop = RMSprop(lr);
+                w_opt[i] = (Optimizer*)&rmsprop;
+            }
+            RMSprop rmsprop = RMSprop(lr);
+            b_opt = (Optimizer*)&rmsprop;
+        } else if (optimizer == "adam") {
+            for (int i = 0; i < n; i++) {
+                Adam adam = Adam(lr);
+                w_opt[i] = (Optimizer*)&adam;
+            }
+            Adam adam = Adam(lr);
+            b_opt = (Optimizer*)&adam;
+        } else {
+            cout << "error: unknown optimizer: " << optimizer << endl;
+            return;
         }
     }
 
@@ -330,15 +345,15 @@ struct AffineLayer : Layer {
     
     void update() override {
         for (int i = 0; i < n; i++) {
-            opt[i]->update(w[i], dw[i]);
+            w_opt[i]->update(w[i], dw[i]);
         }
-        opt[n]->update(b, db);
+        b_opt->update(b, db);
     }
 };
 
 // ------ loss functions ------
 
-double sse(vector<double>& y, vector<double>& t, vector<double>& dout) {
+double sse(const vector<double>& y, const vector<double>& t, vector<double>& dout) {
     /* Sum of Squared Error
     モデルの出力yと正解tの二乗和誤差を返す.
     doutに勾配を代入する. */
@@ -350,6 +365,40 @@ double sse(vector<double>& y, vector<double>& t, vector<double>& dout) {
     }
     return ret / 2.0;
 }
+
+// ------ neural network ------
+
+struct NeuralNetwork {
+    vector<Layer*> layers;
+    vector<vector<double>> dout;
+
+    vector<vector<double>> predict(vector<vector<double>> x) {
+        for (Layer* layer : layers) {
+            x = layer->forward(x);
+        }
+        return x;
+    }
+
+    vector<double> test(vector<vector<double>>& x, vector<vector<double>>& t) {
+        vector<vector<double>> y = predict(x);
+        assert(y.size() == t.size() && y[0].size() == t[0].size());
+
+        vector<double> ret(y.size());
+        dout = vector<vector<double>>(y.size(), vector<double>(y[0].size()));
+        for (int i = 0; i < (int)y.size(); i++) {
+            ret[i] = sse(y[i], t[i], dout[i]);
+        }
+        return ret;
+    }
+
+    vector<double> train(vector<vector<double>>& x, vector<vector<double>>& t) {
+        vector<double> ret = test(x, t);
+        for (int i = layers.size()-1; 0 <= i; i--) {
+            dout = layers[i]->backward(dout);
+        }
+        return ret;
+    }
+};
 
 
 int main() {
