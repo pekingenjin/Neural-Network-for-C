@@ -395,6 +395,7 @@ struct NeuralNetwork {
         vector<double> ret = test(x, t);
         for (int i = layers.size()-1; 0 <= i; i--) {
             dout = layers[i]->backward(dout);
+            layers[i]->update();
         }
         return ret;
     }
