@@ -7,7 +7,6 @@
 using namespace std;
 //using namespace atcoder;
 
-
 // Reference: https://github.com/oreilly-japan/deep-learning-from-scratch/tree/master/common
 
 // ------ random functions ------
@@ -286,32 +285,24 @@ struct AffineLayer : Layer {
         w_opt = vector<Optimizer*>(n);
         if (optimizer == "sgd") {
             for (int i = 0; i < n; i++) {
-                SGD sgd = SGD(lr);
-                w_opt[i] = (Optimizer*)&sgd;
+                w_opt[i] = new SGD(lr);
             }
-            SGD sgd = SGD(lr);
-            b_opt = (Optimizer*)&sgd;
+            b_opt = new SGD(lr);
         } else if (optimizer == "momentum") {
             for (int i = 0; i < n; i++) {
-                Momentum momentum = Momentum(lr);
-                w_opt[i] = (Optimizer*)&momentum;
+                w_opt[i] = new Momentum(lr);
             }
-            Momentum momentum = Momentum(lr);
-            b_opt = (Optimizer*)&momentum;
+            b_opt = new Momentum(lr);
         } else if (optimizer == "rmsprop") {
             for (int i = 0; i < n; i++) {
-                RMSprop rmsprop = RMSprop(lr);
-                w_opt[i] = (Optimizer*)&rmsprop;
+                w_opt[i] = new RMSprop(lr);
             }
-            RMSprop rmsprop = RMSprop(lr);
-            b_opt = (Optimizer*)&rmsprop;
+            b_opt = new RMSprop(lr);
         } else if (optimizer == "adam") {
             for (int i = 0; i < n; i++) {
-                Adam adam = Adam(lr);
-                w_opt[i] = (Optimizer*)&adam;
+                w_opt[i] = new Adam(lr);
             }
-            Adam adam = Adam(lr);
-            b_opt = (Optimizer*)&adam;
+            b_opt = new Adam(lr);
         } else {
             cout << "error: unknown optimizer: " << optimizer << endl;
             return;
@@ -399,9 +390,78 @@ struct NeuralNetwork {
         }
         return ret;
     }
+
+    void fit(vector<vector<double>>& x_train, vector<vector<double>>& y_train, vector<vector<double>>& x_test, vector<vector<double>>& y_test, int epoch, int batch_size) {
+        assert(x_train.size() == y_train.size() && x_test.size() == y_test.size());
+        for (int i = 0; i < epoch; i++) {
+            cout << "epoch " << i+1 << endl;
+
+            random_device seed_gen;
+            mt19937 engine(seed_gen());
+            shuffle(x_train.begin(), x_train.end(), engine);
+            
+            vector<double> losses;
+            for (int j = 0; j < x_train.size(); j += batch_size) {
+                vector<vector<double>> x;
+                vector<vector<double>> y;
+                for (int k = j; k < min((int)x_train.size(),j+batch_size); k++) {
+                    x.push_back(x_train[k]);
+                    y.push_back(y_train[k]);
+                }
+                vector<double> loss = train(x, y);
+                losses.insert(losses.end(), loss.begin(), loss.end());
+            }
+            cout << "train loss: " << accumulate(losses.begin(), losses.end(), 0.0) / losses.size() << endl;
+
+            losses = test(x_test, y_test);
+            cout << "test loss: " << accumulate(losses.begin(), losses.end(), 0.0) / losses.size() << endl;
+        }
+    }
 };
 
-
 int main() {
-    
+    NeuralNetwork nn;
+    nn.layers.push_back(new AffineLayer(784, 32, "He"));
+    nn.layers.push_back(new ReluLayer);
+    nn.layers.push_back(new AffineLayer(32, 32, "He"));
+    nn.layers.push_back(new ReluLayer);
+    nn.layers.push_back(new AffineLayer(32, 1, "He"));
+
+    vector<vector<double>> x_train(12665, vector<double>(784));
+    vector<vector<double>> y_train(12665);
+    ifstream train_data("mnist_train_49.txt");
+    for (int i = 0; i < (int)x_train.size(); i++) {
+        int t;
+        train_data >> t;
+        if (t == 4) {
+            y_train[i] = {0.0};
+        } else {
+            y_train[i] = {1.0};
+        }
+        for (int j = 0; j < 784; j++) {
+            train_data >> x_train[i][j];
+        }
+    }
+    train_data.close();
+
+    vector<vector<double>> x_test(2115, vector<double>(784));
+    vector<vector<double>> y_test(2115);
+    ifstream test_data("mnist_test_49.txt");
+    for (int i = 0; i < (int)x_test.size(); i++) {
+        int t;
+        test_data >> t;
+        if (t == 4) {
+            y_test[i] = {0.0};
+        } else {
+            y_test[i] = {1.0};
+        }
+        for (int j = 0; j < 784; j++) {
+            test_data >> x_test[i][j];
+        }
+    }
+    test_data.close();
+
+    int batch_size = 32;
+    int epoch = 5;
+    nn.fit(x_train, y_train, x_test, y_test, epoch, batch_size);
 }
